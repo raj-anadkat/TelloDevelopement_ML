@@ -1,0 +1,85 @@
+import keyboard_control as kb
+from djitellopy import tello
+import time
+from training import *
+import numpy as np
+import cv2
+haar_cascade = cv2.CascadeClassifier('haar_face.xml')
+
+people = train()
+features = np.load('features.npy', allow_pickle=True)
+labels = np.load('labels.npy', allow_pickle=True)
+
+face_recognizer = cv2.face.LBPHFaceRecognizer_create()
+face_recognizer.read('face_trained.yml')
+
+# initializing
+kb.init()
+drone = tello.Tello()
+drone.connect()
+print("Battery:" ,drone.get_battery(),"%")
+global img
+
+#starting the video stream
+drone.streamon()
+
+
+def getKeyBoardInput():
+    roll,pitch,throttle,yaw = 0,0,0,0
+    velocity = 75
+
+    # checking for roll commands
+    if kb.getKey("LEFT"):roll = -velocity
+    elif kb.getKey("RIGHT"):roll = velocity
+    
+    # checking for pitch commands
+    if kb.getKey("UP"):pitch = velocity
+    elif kb.getKey("DOWN"):pitch = -velocity
+
+    # checking for throttle commands
+    if kb.getKey("w"):throttle = velocity
+    elif kb.getKey("s"):throttle = -velocity
+    
+    # checking for yaw commands
+    if kb.getKey("a"):yaw = -velocity
+    elif kb.getKey("d"):yaw = velocity
+
+    # abort and land command
+    if kb.getKey("x"):drone.land()
+
+    # take off command
+    if kb.getKey("t"):drone.takeoff()
+
+    if kb.getKey('c'):
+        cv2.imwrite(f'Resources/Images/{time.time()}.jpg',img)
+        time.sleep(0.3)
+    return [roll,pitch,throttle,yaw]
+
+
+while True:
+    vals = getKeyBoardInput()
+    drone.send_rc_control(vals[0],vals[1],vals[2],vals[3])
+    print("Battery:" ,drone.get_battery(),"%")
+    img = drone.get_frame_read().frame
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    faces_rect = haar_cascade.detectMultiScale(gray,1.1,7)
+
+    for (x,y,w,h) in faces_rect:
+        faces_roi = gray[y:y+h,x:x+h]
+
+        label,confidence = face_recognizer.predict(faces_roi)
+        confidence = int(confidence)
+        print(f'Label = {people[label]} with a confidence of {confidence}')
+        cv2.putText(img,str(people[label]+" - "+str(confidence)+" %"),(x,y-40),cv2.FONT_HERSHEY_COMPLEX,1.0,(255,0,0),thickness=2)
+        cv2.rectangle(img,(x,y),(x+w,y+h),(0,0,0),thickness=2)
+        
+    img = cv2.resize(img,(img.shape[1]//2,img.shape[0]//2))
+    cv2.imshow('Detected Face',img)
+    img = cv2.resize(img,(360,240))
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    faces = haar_cascade.detectMultiScale(gray,1.1,4)
+
+
+    k = cv2.waitKey(30) & 0xff
+    # cv2.imshow("FPV FEED",img)
+    # k = cv2.waitKey(30) & 0xff

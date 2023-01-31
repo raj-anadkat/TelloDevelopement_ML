@@ -1,0 +1,47 @@
+import keyboard_control as kb
+from djitellopy import tello
+from time import sleep
+
+# initializing
+kb.init()
+drone = tello.Tello()
+drone.connect()
+print("Battery:" ,drone.get_battery(),"%")
+
+def getKeyBoardInput():
+    roll,pitch,throttle,yaw = 0,0,0,0
+    velocity = 75
+
+    # checking for roll commands
+    if kb.getKey("LEFT"):roll = -velocity
+    elif kb.getKey("RIGHT"):roll = velocity
+    
+    # checking for pitch commands
+    if kb.getKey("UP"):pitch = velocity
+    elif kb.getKey("DOWN"):pitch = -velocity
+
+    # checking for throttle commands
+    if kb.getKey("w"):throttle = velocity
+    elif kb.getKey("s"):throttle = -velocity
+    
+    # checking for yaw commands
+    if kb.getKey("a"):yaw = -velocity
+    elif kb.getKey("d"):yaw = velocity
+
+    # abort and land command
+    if kb.getKey("x"):drone.land()
+
+    # take off command
+    if kb.getKey("t"):drone.takeoff()
+
+
+    return [roll,pitch,throttle,yaw]
+
+
+while True:
+    vals = getKeyBoardInput()
+    drone.send_rc_control(vals[0],vals[1],vals[2],vals[3])
+    print("Battery:" ,drone.get_battery(),"%")
+    sleep(0.05)
+
+
